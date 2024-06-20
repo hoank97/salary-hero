@@ -1,0 +1,113 @@
+services:
+  api-gateway:
+    image: salary-hero
+    container_name: api-gateway
+    volumes:
+      - ./apps/api-gateway:/work/apps/api-gateway
+    ports:
+      - ${APP_PORT_EXPOSE}:${APP_PORT_CONTAINER}
+    restart: unless-stopped
+    command: ['yarn', 'start:dev', 'api-gateway']
+    depends_on:
+      - rabbitmq
+    networks:
+      - salary-hero-network
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    ports:
+      - 5672:5672 # for connect and process data
+      - 15672:15672 # for management plugin
+    volumes:
+      - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
+      - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+    networks:
+      - salary-hero-network
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RMQ_USERNAME}
+      - RABBITMQ_DEFAULT_PASS=${RMQ_PASSWORD}
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
+
+  core-service:
+    image: salary-hero
+    container_name: core-service
+    volumes:
+      - ./apps/core-service:/work/apps/core-service
+      - ./libs:/work/libs
+    restart: unless-stopped
+    command: ['yarn', 'start:dev', 'core-service']
+    depends_on:
+      - rabbitmq
+      - core-db
+    networks:
+      - salary-hero-network
+
+  cron-service:
+    image: salary-hero
+    container_name: cron-service
+    volumes:
+      - ./apps/cron-service:/work/apps/cron-service
+      - ./libs:/work/libs
+    restart: unless-stopped
+    command: ['yarn', 'start:dev', 'cron-service']
+    depends_on:
+      - rabbitmq
+      - core-db
+    networks:
+      - salary-hero-network
+
+  withdraw-service:
+    image: salary-hero
+    container_name: withdraw-service
+    volumes:
+      - ./apps/withdraw-service:/work/apps/withdraw-service
+      - ./libs:/work/libs
+    restart: unless-stopped
+    command: ['yarn', 'start:dev', 'withdraw-service']
+    depends_on:
+      - rabbitmq
+      - withdraw-db
+    networks:
+      - salary-hero-network
+
+  core-db:
+    image: postgres:16.2-alpine3.19
+    container_name: core-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_CORE_USERNAME}
+      POSTGRES_PASSWORD: ${DB_CORE_PASSWORD}
+      POSTGRES_DB: ${DB_CORE_DATABASE_NAME}
+    ports:
+      - ${DB_CORE_PORT_EXPOSE}:${DB_CORE_PORT_CONTAINER}
+    volumes:
+      - pgdata-core:/var/lib/postgresql/data
+    networks:
+      - salary-hero-network
+
+  withdraw-db:
+    image: postgres:16.2-alpine3.19
+    container_name: withdraw-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_WITHDRAW_USERNAME}
+      POSTGRES_PASSWORD: ${DB_WITHDRAW_PASSWORD}
+      POSTGRES_DB: ${DB_WITHDRAW_DATABASE_NAME}
+    ports:
+      - ${DB_WITHDRAW_PORT_EXPOSE}:${DB_WITHDRAW_PORT_CONTAINER}
+    volumes:
+      - pgdata-withdraw:/var/lib/postgresql/data
+    networks:
+      - salary-hero-network
+
+volumes:
+  pgdata-core:
+  pgdata-withdraw:
+networks:
+  salary-hero-network:
+    driver: bridge
