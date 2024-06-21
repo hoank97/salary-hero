@@ -26,7 +26,7 @@ export class TasksService {
     const workingDayRepo = this.dataSource.getRepository(WorkingDayEntity);
 
     // Setup Batch to process, can be increased or reduced based on the hardware configuration
-    const batchSize = 2;
+    const batchSize = 100;
     let offset = 0;
     let done = false;
 
